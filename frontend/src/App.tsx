@@ -2,26 +2,31 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Chat from './pages/Chat';
+import { ReactNode } from 'react';
 import './App.css';
 
-function PrivateRoute({ children }) {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  return user ? children : <Navigate to="/login" />;
+interface RouteGuardProps {
+  children: ReactNode;
 }
 
-function PublicRoute({ children }) {
+function PrivateRoute({ children }: RouteGuardProps) {
   const { user, loading } = useAuth();
 
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
 
-  return user ? <Navigate to="/chat" /> : children;
+  return user ? <>{children}</> : <Navigate to="/login" />;
+}
+
+function PublicRoute({ children }: RouteGuardProps) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  return user ? <Navigate to="/chat" /> : <>{children}</>;
 }
 
 function App() {

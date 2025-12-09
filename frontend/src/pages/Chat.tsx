@@ -1,42 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { contactAPI, messageAPI } from '../services/api';
+import type { Contact, Conversation, Message, WebSocketMessage, User } from '../types';
+import { AxiosError } from 'axios';
 import './Chat.css';
 
 function Chat() {
   const { user, logout } = useAuth();
-  const { isConnected, messages: wsMessages, sendChatMessage, onMessage } = useWebSocket();
-  const [contacts, setContacts] = useState([]);
-  const [conversations, setConversations] = useState([]);
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [selectedConversation, setSelectedConversation] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [showAddContact, setShowAddContact] = useState(false);
-  const [newContactUsername, setNewContactUsername] = useState('');
-  const [addContactError, setAddContactError] = useState('');
+  const { isConnected, sendChatMessage, onMessage } = useWebSocket();
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showAddContact, setShowAddContact] = useState<boolean>(false);
+  const [newContactUsername, setNewContactUsername] = useState<string>('');
+  const [addContactError, setAddContactError] = useState<string>('');
 
   useEffect(() => {
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     // Handle incoming WebSocket messages
-    onMessage('new_message', (data) => {
-      if (selectedConversation && data.message.conversation_id === selectedConversation) {
-        setMessages(prev => [...prev, data.message]);
+    onMessage('new_message', (data: WebSocketMessage) => {
+      if (selectedConversation && data.message && data.message.conversation_id === selectedConversation) {
+        setMessages(prev => [...prev, data.message!]);
       }
       // Refresh conversations list
       loadConversations();
     });
 
-    onMessage('queued_message', (data) => {
-      if (selectedConversation && data.message.conversation_id === selectedConversation) {
-        setMessages(prev => [...prev, data.message]);
+    onMessage('message_ack', (data: WebSocketMessage) => {
+      if (selectedConversation && data.message && data.message.conversation_id === selectedConversation) {
+        setMessages(prev => [...prev, data.message!]);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation, onMessage]);
 
   const loadInitialData = async () => {
@@ -65,7 +69,7 @@ function Chat() {
     }
   };
 
-  const loadMessages = async (conversationId) => {
+  const loadMessages = async (conversationId: string) => {
     try {
       const res = await messageAPI.getMessages(conversationId);
       setMessages(res.data || []);
@@ -75,7 +79,7 @@ function Chat() {
     }
   };
 
-  const handleSelectContact = async (contact) => {
+  const handleSelectContact = async (contact: Contact) => {
     setSelectedContact(contact);
     
     // Find existing conversation with this contact
@@ -92,23 +96,23 @@ function Chat() {
     }
   };
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedContact) return;
 
-    const success = sendChatMessage(
+    const result = sendChatMessage(
       selectedContact.id,
       newMessage.trim(),
       selectedConversation
     );
 
-    if (success) {
+    if (result.success) {
       setNewMessage('');
       // Message will be added when we receive the ACK from server
     }
   };
 
-  const handleAddContact = async (e) => {
+  const handleAddContact = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setAddContactError('');
     
@@ -126,7 +130,7 @@ function Chat() {
         return;
       }
 
-      const userToAdd = searchRes.data[0];
+      const userToAdd: User = searchRes.data[0];
       
       // Add as contact
       await contactAPI.addContact(userToAdd.id);
@@ -140,7 +144,8 @@ function Chat() {
       setAddContactError('');
     } catch (error) {
       console.error('Failed to add contact:', error);
-      setAddContactError(error.response?.data?.error || 'Failed to add contact');
+      const axiosError = error as AxiosError<{ error: string }>;
+      setAddContactError(axiosError.response?.data?.error || 'Failed to add contact');
     }
   };
 
@@ -182,7 +187,7 @@ function Chat() {
               <input
                 type="text"
                 value={newContactUsername}
-                onChange={(e) => setNewContactUsername(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewContactUsername(e.target.value)}
                 placeholder="Enter username..."
                 autoFocus
               />
@@ -215,7 +220,7 @@ function Chat() {
                 <div className="contact-info">
                   <div className="contact-name">{contact.username}</div>
                   <div className="contact-status">
-                    {contact.presence?.status || 'offline'}
+                    {contact.status || 'offline'}
                   </div>
                 </div>
               </div>
@@ -235,7 +240,7 @@ function Chat() {
               <div className="contact-info">
                 <h3>{selectedContact.username}</h3>
                 <span className="status">
-                  {selectedContact.presence?.status || 'offline'}
+                  {selectedContact.status || 'offline'}
                 </span>
               </div>
             </div>
@@ -247,7 +252,7 @@ function Chat() {
                 messages.map((msg, index) => (
                   <div
                     key={msg.id || index}
-                    className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                    className={`message ${msg.sender_id === user?.id ? 'sent' : 'received'}`}
                   >
                     <div className="message-content">{msg.content}</div>
                     <div className="message-time">
@@ -262,7 +267,7 @@ function Chat() {
               <input
                 type="text"
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMessage(e.target.value)}
                 placeholder="Type a message..."
                 disabled={!isConnected}
               />
