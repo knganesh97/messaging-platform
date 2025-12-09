@@ -1,18 +1,14 @@
-import { useState, FormEvent, ChangeEvent } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import './Login.css';
+import { LoginForm, AuthToggle } from '@/components/auth';
 
 function Login() {
   const [isLogin, setIsLogin] = useState<boolean>(true);
-  const [username, setUsername] = useState<string>('');
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const { login, register } = useAuth();
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (username: string, email: string, password: string) => {
     setError('');
     setLoading(true);
 
@@ -27,58 +23,24 @@ function Login() {
   };
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h1>{isLogin ? 'Login' : 'Register'}</h1>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-
-          {!isLogin && (
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-          )}
-
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-
-          {error && <div className="error-message">{error}</div>}
-
-          <button type="submit" disabled={loading}>
-            {loading ? 'Loading...' : isLogin ? 'Login' : 'Register'}
-          </button>
-        </form>
-
-        <p className="toggle-link">
-          {isLogin ? "Don't have an account? " : 'Already have an account? '}
-          <span onClick={() => setIsLogin(!isLogin)}>
-            {isLogin ? 'Register' : 'Login'}
-          </span>
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-secondary">
+      <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
+          {isLogin ? 'Login' : 'Register'}
+        </h1>
+        <LoginForm
+          isLogin={isLogin}
+          onSubmit={handleSubmit}
+          error={error}
+          loading={loading}
+        />
+        <AuthToggle
+          isLogin={isLogin}
+          onToggle={() => {
+            setIsLogin(!isLogin);
+            setError('');
+          }}
+        />
       </div>
     </div>
   );

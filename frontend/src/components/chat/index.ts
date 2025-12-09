@@ -1,0 +1,10 @@
+export { AddContactForm } from './AddContactForm';
+export { ChatArea } from './ChatArea';
+export { ChatHeader } from './ChatHeader';
+export { ContactItem } from './ContactItem';
+export { ContactsList } from './ContactsList';
+export { MessageInput } from './MessageInput';
+export { MessageItem } from './MessageItem';
+export { MessagesContainer } from './MessagesContainer';
+export { Sidebar } from './Sidebar';
+export { SidebarHeader } from './SidebarHeader';
