@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import type { User, Contact, Conversation, Message } from '../types';
+import type { User, Contact, Conversation, Message } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 

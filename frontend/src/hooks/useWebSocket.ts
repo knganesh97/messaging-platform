@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import type { WebSocketMessage, WebSocketMessageType, Message } from '../types';
+import { useAuth } from '@/contexts/AuthContext';
+import type { WebSocketMessage, WebSocketMessageType, Message } from '@/types';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
 
@@ -21,7 +21,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const ws = useRef<WebSocket | null>(null);
-  const reconnectTimeout = useRef<number | null>(null);
+  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
   const messageHandlers = useRef<Record<string, MessageHandler>>({});
 
   const connect = useCallback(() => {

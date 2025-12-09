@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios, { AxiosError } from 'axios';
-import type { User, AuthContextType, LoginResult, AuthResponse } from '../types';
+import type { User, AuthContextType, LoginResult, AuthResponse } from '@/types';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 

@@ -1,8 +1,8 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useWebSocket } from '../hooks/useWebSocket';
-import { contactAPI, messageAPI } from '../services/api';
-import type { Contact, Conversation, Message, WebSocketMessage, User } from '../types';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { contactAPI, messageAPI } from '@/services/api';
+import type { Contact, Conversation, Message, WebSocketMessage, User } from '@/types';
 import { AxiosError } from 'axios';
 import './Chat.css';
 
