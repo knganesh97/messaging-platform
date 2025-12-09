@@ -48,7 +48,7 @@ services:
       - MONGODB_DATABASE=messaging_platform
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
       - JWT_EXPIRY=24h
-      - CORS_ORIGINS=http://localhost:5173
+      - CORS_ORIGINS=*
       - SERVER_ID=server-1
     depends_on:
       - mongodb-init
@@ -62,8 +62,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8080/api
-      - VITE_WS_URL=ws://localhost:8080/ws
+      - VITE_API_URL=http://192.168.1.4:8080/api
+      - VITE_WS_URL=ws://192.168.1.4:8080/ws
     depends_on:
       - backend
     volumes:
