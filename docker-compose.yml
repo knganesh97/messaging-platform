@@ -42,14 +42,8 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
-    environment:
-      - PORT=8080
-      - MONGODB_URI=mongodb://mongodb:27017
-      - MONGODB_DATABASE=messaging_platform
-      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
-      - JWT_EXPIRY=24h
-      - CORS_ORIGINS=*
-      - SERVER_ID=server-1
+    env_file:
+      - .env
     depends_on:
       - mongodb-init
 
@@ -61,9 +55,8 @@ services:
     restart: unless-stopped
     ports:
       - "5173:5173"
-    environment:
-      - VITE_API_URL=http://192.168.1.4:8080/api
-      - VITE_WS_URL=ws://192.168.1.4:8080/ws
+    env_file:
+      - .env
     depends_on:
       - backend
     volumes:
