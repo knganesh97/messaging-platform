@@ -343,11 +343,10 @@ func (c *Client) handleSendMessage(ctx context.Context, data json.RawMessage) {
 		"message": message,
 	})
 
-	// Send ACK to sender
+	// Send ACK to sender with full message
 	ack, _ := json.Marshal(map[string]interface{}{
-		"type":       "message_sent",
-		"message_id": message.ID.Hex(),
-		"status":     "sent",
+		"type":    "message_ack",
+		"message": message,
 	})
 	c.Send <- ack
 }

@@ -56,7 +56,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     // Handle incoming WebSocket messages
     onMessage('new_message', (data: WebSocketMessage) => {
       if (selectedConversation && data.message && data.message.conversation_id === selectedConversation) {
-        setMessages(prev => [...prev, data.message!]);
+        setMessages(prev => {
+          // Prevent duplicates by checking if message already exists
+          if (prev.some(m => m.id === data.message!.id)) {
+            return prev;
+          }
+          return [...prev, data.message!];
+        });
       }
       // Refresh conversations list
       loadConversations();
@@ -64,7 +70,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
     onMessage('message_ack', (data: WebSocketMessage) => {
       if (selectedConversation && data.message && data.message.conversation_id === selectedConversation) {
-        setMessages(prev => [...prev, data.message!]);
+        setMessages(prev => {
+          // Prevent duplicates by checking if message already exists
+          if (prev.some(m => m.id === data.message!.id)) {
+            return prev;
+          }
+          return [...prev, data.message!];
+        });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

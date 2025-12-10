@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import type { WebSocketMessage, WebSocketMessageType, Message } from '@/types';
+import type { WebSocketMessage, WebSocketMessageType } from '@/types';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
 
@@ -8,7 +8,6 @@ type MessageHandler = (data: WebSocketMessage) => void;
 
 interface UseWebSocketReturn {
   isConnected: boolean;
-  messages: Message[];
   sendChatMessage: (recipientId: string, content: string, conversationId?: string | null) => { success: boolean };
   sendTypingIndicator: (recipientId: string, isTyping: boolean) => boolean;
   sendReadReceipt: (messageId: string) => boolean;
@@ -19,7 +18,6 @@ interface UseWebSocketReturn {
 export const useWebSocket = (): UseWebSocketReturn => {
   const { token, user } = useAuth();
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [messages, setMessages] = useState<Message[]>([]);
   const ws = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
   const messageHandlers = useRef<Record<string, MessageHandler>>({});
@@ -43,11 +41,6 @@ export const useWebSocket = (): UseWebSocketReturn => {
         // Call registered handlers
         if (messageHandlers.current[data.type]) {
           messageHandlers.current[data.type](data);
-        }
-
-        // Store message if it's a new message
-        if ((data.type === 'new_message' || data.type === 'message_ack') && data.message) {
-          setMessages(prev => [...prev, data.message!]);
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -127,7 +120,6 @@ export const useWebSocket = (): UseWebSocketReturn => {
 
   return {
     isConnected,
-    messages,
     sendChatMessage,
     sendTypingIndicator,
     sendReadReceipt,
