@@ -48,6 +48,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setToken(newToken);
       setUser(userData);
       localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
       return { success: true };
     } catch (error) {
       const axiosError = error as AxiosError<{ error: string }>;
@@ -69,6 +70,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setToken(newToken);
       setUser(userData);
       localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
       return { success: true };
     } catch (error) {
       const axiosError = error as AxiosError<{ error: string }>;
@@ -83,6 +85,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
   };
 
   return (

@@ -8,7 +8,7 @@ type MessageHandler = (data: WebSocketMessage) => void;
 
 interface UseWebSocketReturn {
   isConnected: boolean;
-  sendChatMessage: (recipientId: string, content: string, conversationId?: string | null) => { success: boolean };
+  sendChatMessage: (recipientId: string, content: string, conversationId?: string | null, tempId?: string) => { success: boolean };
   sendTypingIndicator: (recipientId: string, isTyping: boolean) => boolean;
   sendReadReceipt: (messageId: string) => boolean;
   onMessage: (type: WebSocketMessageType, handler: MessageHandler) => void;
@@ -90,12 +90,13 @@ export const useWebSocket = (): UseWebSocketReturn => {
     delete messageHandlers.current[type];
   }, []);
 
-  const sendChatMessage = useCallback((recipientId: string, content: string, conversationId: string | null = null): { success: boolean } => {
+  const sendChatMessage = useCallback((recipientId: string, content: string, conversationId: string | null = null, tempId?: string): { success: boolean } => {
     const success = sendMessage('send_message', {
       recipient_id: recipientId,
       conversation_id: conversationId,
       content,
-      type: 'text'
+      type: 'text',
+      temp_id: tempId
     });
     return { success };
   }, [sendMessage]);

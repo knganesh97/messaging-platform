@@ -83,11 +83,13 @@ export interface ChatHeaderProps {
 export interface MessagesContainerProps {
   messages: Message[];
   currentUserId?: string;
+  onRetry?: (tempId: string) => void;
 }
 
 export interface MessageItemProps {
   message: Message;
   isSent: boolean;
+  onRetry?: (tempId: string) => void;
 }
 
 export interface MessageInputProps {

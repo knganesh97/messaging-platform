@@ -293,9 +293,14 @@ func (c *Client) handleSendMessage(ctx context.Context, data json.RawMessage) {
 		ConversationID string `json:"conversation_id,omitempty"`
 		Content        string `json:"content"`
 		Type           string `json:"type"`
+		TempID         string `json:"temp_id,omitempty"` // Client-side temporary ID
 	}
 
 	if err := json.Unmarshal(data, &req); err != nil {
+		// Send error ACK
+		if req.TempID != "" {
+			c.sendErrorAck(req.TempID, "Invalid message format")
+		}
 		return
 	}
 
@@ -315,6 +320,10 @@ func (c *Client) handleSendMessage(ctx context.Context, data json.RawMessage) {
 	if conversation == nil {
 		conversation, err = c.Manager.messageService.GetOrCreateConversation(ctx, []string{c.UserID, req.RecipientID})
 		if err != nil {
+			// Send error ACK
+			if req.TempID != "" {
+				c.sendErrorAck(req.TempID, "Failed to create conversation")
+			}
 			return
 		}
 	}
@@ -334,19 +343,49 @@ func (c *Client) handleSendMessage(ctx context.Context, data json.RawMessage) {
 	}
 
 	if err := c.Manager.messageService.CreateMessage(ctx, message); err != nil {
+		// Send error ACK
+		if req.TempID != "" {
+			c.sendErrorAck(req.TempID, "Failed to save message")
+		}
 		return
 	}
 
-	// Send to recipient
+	// Send to recipient (full message)
 	c.Manager.SendToUser(req.RecipientID, map[string]interface{}{
 		"type":    "new_message",
 		"message": message,
 	})
 
-	// Send ACK to sender with full message
+	// Update delivery status to "delivered" if recipient is online
+	if connections, ok := c.Manager.userConnections.Load(req.RecipientID); ok && len(connections.([]string)) > 0 {
+		// Recipient is online, update to delivered
+		c.Manager.messageService.UpdateStatus(ctx, message.ID.Hex(), req.RecipientID, "delivered")
+
+		// Notify sender about delivery
+		c.Manager.SendToUser(c.UserID, map[string]interface{}{
+			"type":       "status_update",
+			"message_id": message.ID.Hex(),
+			"status":     "delivered",
+		})
+	}
+
+	// Send lightweight ACK to sender (no full message echo)
+	ack, _ := json.Marshal(map[string]interface{}{
+		"type":      "message_ack",
+		"temp_id":   req.TempID,
+		"server_id": message.ID.Hex(),
+		"timestamp": message.Timestamp,
+		"status":    "sent",
+	})
+	c.Send <- ack
+}
+
+// sendErrorAck sends a lightweight error acknowledgment to the client
+func (c *Client) sendErrorAck(tempID string, errorMsg string) {
 	ack, _ := json.Marshal(map[string]interface{}{
 		"type":    "message_ack",
-		"message": message,
+		"temp_id": tempID,
+		"error":   errorMsg,
 	})
 	c.Send <- ack
 }
@@ -378,17 +417,17 @@ func (c *Client) handleReadReceipt(ctx context.Context, data json.RawMessage) {
 		return
 	}
 
-	// Update message status
+	// Update message status to read
 	c.Manager.messageService.UpdateStatus(ctx, req.MessageID, c.UserID, "read")
 
-	// Notify sender
+	// Notify sender about read status
 	msgID, _ := primitive.ObjectIDFromHex(req.MessageID)
 	var message models.Message
 	if err := c.Manager.db.DB.Collection("messages").FindOne(ctx, bson.M{"_id": msgID}).Decode(&message); err == nil {
 		c.Manager.SendToUser(message.SenderID.Hex(), map[string]interface{}{
-			"type":       "read_receipt",
+			"type":       "status_update",
 			"message_id": req.MessageID,
-			"user_id":    c.UserID,
+			"status":     "read",
 		})
 	}
 }

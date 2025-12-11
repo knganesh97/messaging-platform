@@ -4,3 +4,4 @@ export { EmptyState } from './EmptyState';
 export { ErrorMessage } from './ErrorMessage';
 export { Input } from './Input';
 export { LoadingSpinner } from './LoadingSpinner';
+export * from './Icons';

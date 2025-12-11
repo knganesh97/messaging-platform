@@ -16,13 +16,17 @@ export interface Contact {
 }
 
 // Message types
+export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+
 export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
   content: string;
   timestamp: string;
-  status?: 'sent' | 'delivered' | 'read';
+  status?: MessageStatus;
+  temp_id?: string; // Temporary ID for optimistic updates
+  error?: string; // Error message if send failed
 }
 
 // Conversation types
@@ -38,6 +42,7 @@ export interface Conversation {
 export type WebSocketMessageType = 
   | 'new_message'
   | 'message_ack'
+  | 'status_update'
   | 'typing'
   | 'read_receipt'
   | 'user_status'

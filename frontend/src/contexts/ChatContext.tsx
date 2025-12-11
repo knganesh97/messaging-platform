@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { contactAPI, messageAPI } from '@/services/api';
 import type { Contact, Conversation, Message, WebSocketMessage } from '@/types';
 import { AxiosError } from 'axios';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ChatContextType {
   // State
@@ -26,6 +27,7 @@ interface ChatContextType {
   handleSendMessage: () => void;
   handleAddContact: (username: string) => Promise<void>;
   loadConversations: () => Promise<void>;
+  retryMessage: (tempId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -46,9 +48,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [showAddContact, setShowAddContact] = useState<boolean>(false);
   const [newContactUsername, setNewContactUsername] = useState<string>('');
   const [addContactError, setAddContactError] = useState<string>('');
+  const pendingTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const [currentUserId, setCurrentUserId] = useState<string>('');
 
   useEffect(() => {
     loadInitialData();
+    // Get current user ID from localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setCurrentUserId(user.id);
+      } catch (error) {
+        console.error('Failed to parse user from localStorage:', error);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,15 +83,61 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     });
 
     onMessage('message_ack', (data: WebSocketMessage) => {
-      if (selectedConversation && data.message && data.message.conversation_id === selectedConversation) {
-        setMessages(prev => {
-          // Prevent duplicates by checking if message already exists
-          if (prev.some(m => m.id === data.message!.id)) {
-            return prev;
-          }
-          return [...prev, data.message!];
-        });
+      const { temp_id, server_id, timestamp, status, error } = data;
+      
+      if (!temp_id) return;
+
+      // Clear timeout for this message
+      const timeout = pendingTimeouts.current.get(temp_id);
+      if (timeout) {
+        clearTimeout(timeout);
+        pendingTimeouts.current.delete(temp_id);
       }
+
+      setMessages(prev => {
+        // Find the pending message by temp_id
+        const messageIndex = prev.findIndex(m => m.temp_id === temp_id);
+        if (messageIndex === -1) return prev;
+
+        const updatedMessages = [...prev];
+        
+        if (error) {
+          // Mark message as failed
+          updatedMessages[messageIndex] = {
+            ...updatedMessages[messageIndex],
+            status: 'failed',
+            error: error
+          };
+        } else {
+          // Update with server ID and mark as sent
+          updatedMessages[messageIndex] = {
+            ...updatedMessages[messageIndex],
+            id: server_id || updatedMessages[messageIndex].id,
+            timestamp: timestamp || updatedMessages[messageIndex].timestamp,
+            status: status as Message['status'] || 'sent',
+            temp_id: temp_id // Keep temp_id for reference
+          };
+        }
+
+        return updatedMessages;
+      });
+
+      // Refresh conversations list if successful
+      if (!error) {
+        loadConversations();
+      }
+    });
+
+    onMessage('status_update', (data: WebSocketMessage) => {
+      const { message_id, status } = data;
+      
+      if (!message_id || !status) return;
+
+      setMessages(prev => prev.map(m => 
+        m.id === message_id 
+          ? { ...m, status: status as Message['status'] }
+          : m
+      ));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation, onMessage]);
@@ -136,17 +196,96 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   };
 
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedContact) return;
+    if (!newMessage.trim() || !selectedContact || !currentUserId) return;
 
+    const tempId = `temp-${uuidv4()}`;
+    const messageContent = newMessage.trim();
+    
+    // Create optimistic message
+    const optimisticMessage: Message = {
+      id: tempId,
+      temp_id: tempId,
+      conversation_id: selectedConversation || 'pending',
+      sender_id: currentUserId,
+      content: messageContent,
+      timestamp: new Date().toISOString(),
+      status: 'pending'
+    };
+
+    // Add optimistic message immediately
+    setMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage('');
+
+    // Send message via WebSocket
     const result = sendChatMessage(
       selectedContact.id,
-      newMessage.trim(),
-      selectedConversation
+      messageContent,
+      selectedConversation,
+      tempId // Pass temp_id to backend
     );
 
-    if (result.success) {
-      setNewMessage('');
+    if (!result.success) {
+      // Mark message as failed if send failed
+      setMessages(prev => prev.map(m => 
+        m.temp_id === tempId 
+          ? { ...m, status: 'failed', error: 'Failed to send message' }
+          : m
+      ));
+      return;
     }
+
+    // Set timeout to mark message as failed after 15 seconds
+    const timeout = setTimeout(() => {
+      setMessages(prev => prev.map(m => 
+        m.temp_id === tempId && m.status === 'pending'
+          ? { ...m, status: 'failed', error: 'Message send timeout' }
+          : m
+      ));
+      pendingTimeouts.current.delete(tempId);
+    }, 15000);
+
+    pendingTimeouts.current.set(tempId, timeout);
+  };
+
+  const retryMessage = (tempId: string) => {
+    const message = messages.find(m => m.temp_id === tempId);
+    if (!message || !selectedContact) return;
+
+    // Update message status to pending
+    setMessages(prev => prev.map(m => 
+      m.temp_id === tempId 
+        ? { ...m, status: 'pending', error: undefined }
+        : m
+    ));
+
+    // Resend message
+    const result = sendChatMessage(
+      selectedContact.id,
+      message.content,
+      selectedConversation,
+      tempId
+    );
+
+    if (!result.success) {
+      setMessages(prev => prev.map(m => 
+        m.temp_id === tempId 
+          ? { ...m, status: 'failed', error: 'Failed to send message' }
+          : m
+      ));
+      return;
+    }
+
+    // Set new timeout
+    const timeout = setTimeout(() => {
+      setMessages(prev => prev.map(m => 
+        m.temp_id === tempId && m.status === 'pending'
+          ? { ...m, status: 'failed', error: 'Message send timeout' }
+          : m
+      ));
+      pendingTimeouts.current.delete(tempId);
+    }, 15000);
+
+    pendingTimeouts.current.set(tempId, timeout);
   };
 
   const handleAddContact = async (username: string) => {
@@ -202,6 +341,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         handleSendMessage,
         handleAddContact,
         loadConversations,
+        retryMessage,
       }}
     >
       {children}
