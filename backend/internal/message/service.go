@@ -87,6 +87,7 @@ func (s *Service) UpdateStatus(ctx context.Context, messageID, userID, status st
 		return errors.New("invalid user ID")
 	}
 
+	// Update the specific user's delivery status
 	_, err = s.db.DB.Collection("messages").UpdateOne(
 		ctx,
 		bson.M{
@@ -100,8 +101,71 @@ func (s *Service) UpdateStatus(ctx context.Context, messageID, userID, status st
 			},
 		},
 	)
+	if err != nil {
+		return err
+	}
+
+	// Calculate and update the overall message status
+	return s.updateOverallStatus(ctx, msgID)
+}
+
+// updateOverallStatus calculates and updates the top-level status field based on all delivery statuses
+func (s *Service) updateOverallStatus(ctx context.Context, messageID primitive.ObjectID) error {
+	var msg models.Message
+	err := s.db.DB.Collection("messages").FindOne(ctx, bson.M{"_id": messageID}).Decode(&msg)
+	if err != nil {
+		return err
+	}
+
+	// Calculate overall status from delivery_status array
+	overallStatus := s.calculateOverallStatus(msg.DeliveryStatus)
+
+	// Update the top-level status field
+	_, err = s.db.DB.Collection("messages").UpdateOne(
+		ctx,
+		bson.M{"_id": messageID},
+		bson.M{"$set": bson.M{"status": overallStatus}},
+	)
 
 	return err
+}
+
+// calculateOverallStatus determines the overall status based on all recipients' statuses
+// For group chats: returns the "lowest" status (if any is "sent", return "sent", etc.)
+// Status hierarchy: sent < delivered < read
+func (s *Service) calculateOverallStatus(deliveryStatuses []models.DeliveryStatus) string {
+	if len(deliveryStatuses) == 0 {
+		return "sent"
+	}
+
+	// Track the minimum status across all recipients
+	hasSent := false
+	hasDelivered := false
+	hasRead := false
+
+	for _, ds := range deliveryStatuses {
+		switch ds.Status {
+		case "sent":
+			hasSent = true
+		case "delivered":
+			hasDelivered = true
+		case "read":
+			hasRead = true
+		}
+	}
+
+	// Return the lowest status present
+	if hasSent {
+		return "sent"
+	}
+	if hasDelivered {
+		return "delivered"
+	}
+	if hasRead {
+		return "read"
+	}
+
+	return "sent"
 }
 
 func (s *Service) GetOrCreateConversation(ctx context.Context, userIDs []string) (*models.Conversation, error) {
