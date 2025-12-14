@@ -14,6 +14,24 @@ export const MessagesContainer = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   
+  const AUTO_SCROLL_THRESHOLD = 150; // pixels from bottom to trigger auto-scroll
+  const SCROLL_BUTTON_THRESHOLD = 100; // pixels from bottom to show scroll button
+  
+  // Calculate distance from bottom of scroll container
+  const getDistanceFromBottom = (): number => {
+    const container = scrollContainerRef.current;
+    if (!container) return 0;
+    
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    return scrollHeight - scrollTop - clientHeight;
+  };
+  
+  // Update scroll button visibility based on current position
+  const updateScrollButtonVisibility = () => {
+    const distanceFromBottom = getDistanceFromBottom();
+    setShowScrollButton(distanceFromBottom > SCROLL_BUTTON_THRESHOLD);
+  };
+  
   // Scroll to bottom function
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const container = scrollContainerRef.current;
@@ -27,15 +45,30 @@ export const MessagesContainer = ({
   
   // Handle scroll event to show/hide scroll button
   const handleScroll = () => {
+    updateScrollButtonVisibility();
+  };
+  
+  // Auto-scroll and update scroll button when messages change
+  useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     
-    const threshold = 100; // pixels from bottom
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    // Check if user was near bottom before messages updated
+    const wasNearBottom = getDistanceFromBottom() <= AUTO_SCROLL_THRESHOLD;
     
-    setShowScrollButton(distanceFromBottom > threshold);
-  };
+    // Use requestAnimationFrame to ensure DOM has rendered with new message heights
+    const rafId = requestAnimationFrame(() => {
+      if (wasNearBottom) {
+        // Auto-scroll to bottom if user was already near bottom
+        scrollToBottom('smooth');
+      }
+      
+      // Update scroll button visibility after messages render
+      updateScrollButtonVisibility();
+    });
+    
+    return () => cancelAnimationFrame(rafId);
+  }, [messages]);
   
   useEffect(() => {
     // Send read receipts for received messages
@@ -82,7 +115,7 @@ export const MessagesContainer = ({
       {/* Scroll to bottom button */}
       {showScrollButton && (
         <button
-          onClick={() => scrollToBottom('smooth')}
+          onClick={() => scrollToBottom('instant')}
           className="fixed bottom-24 right-6 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow-lg transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 z-10"
           aria-label="Scroll to bottom"
         >
